@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旅費記帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600&family=IBM+Plex+Mono:wght@300;400&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --border: #e8e5df;
+  --border-dark: #c8c4bc;
+  --text: #1c1a17;
+  --text-sub: #8c8880;
+  --text-light: #b8b4ac;
+  --mono: 'IBM Plex Mono', monospace;
+  --serif: 'Noto Serif TC', serif;
+  --sans: 'Noto Sans TC', sans-serif;
+  --r: 2px;
+}
+html { font-size: 14px; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-weight: 300; letter-spacing: 0.02em; }
+
+.app { max-width: 680px; margin: 0 auto; padding: 0 24px 80px; }
+
+header {
+  padding: 40px 0 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 36px;
+  display: flex; align-items: baseline; justify-content: space-between;
+}
+.site-title { font-family: var(--serif); font-size: 18px; font-weight: 400; letter-spacing: 0.12em; }
+.site-date { font-family: var(--mono); font-size: 10px; color: var(--text-light); letter-spacing: 0.08em; }
+
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+.tab {
+  padding: 10px 20px; font-size: 12px; letter-spacing: 0.08em; color: var(--text-sub);
+  cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; font-family: var(--sans); font-weight: 400; transition: all 0.15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+.section { display: none; }
+.section.active { display: block; }
+
+/* Summary */
+.summary {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  border: 1px solid var(--border); border-radius: var(--r); background: var(--surface);
+  margin-bottom: 28px; overflow: hidden;
+}
+.summary-cell { padding: 20px 18px 16px; border-right: 1px solid var(--border); }
+.summary-cell:last-child { border-right: none; }
+.s-label { font-size: 10px; letter-spacing: 0.12em; color: var(--text-light); margin-bottom: 8px; text-transform: uppercase; }
+.s-value { font-family: var(--mono); font-size: 20px; font-weight: 300; line-height: 1; }
+.s-value .unit { font-size: 10px; color: var(--text-sub); margin-left: 2px; }
+.s-sub { font-size: 10px; color: var(--text-light); margin-top: 5px; }
+.budget-track { height: 2px; background: var(--border); border-radius: 1px; margin-top: 8px; }
+.budget-fill { height: 100%; background: var(--text); border-radius: 1px; transition: width 0.5s ease; }
+.budget-fill.warn { background: #9a4040; }
+
+/* Upload button */
+.upload-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 15px; border: 1.5px dashed var(--border-dark); border-radius: var(--r);
+  background: var(--surface); color: var(--text-sub); font-family: var(--sans); font-size: 13px;
+  font-weight: 300; letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; margin-bottom: 32px;
+}
+.upload-btn:hover { border-color: var(--text); color: var(--text); }
+
+/* Trend */
+.sec-label {
+  font-size: 10px; letter-spacing: 0.12em; color: var(--text-light); text-transform: uppercase;
+  margin-bottom: 12px; display: flex; align-items: center; gap: 14px;
+}
+.sec-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.chart-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; margin-bottom: 32px; }
+.bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 5px; }
+.bar-col .b { width: 100%; background: var(--border); border-radius: 1px 1px 0 0; min-height: 2px; }
+.bar-col .b.today { background: var(--text); }
+.bar-lbl { font-family: var(--mono); font-size: 9px; color: var(--text-light); }
+
+/* Receipt rows */
+.receipt-rows { display: flex; flex-direction: column; }
+.receipt-row {
+  display: grid; grid-template-columns: 52px 1fr auto;
+  align-items: center; gap: 14px; padding: 13px 0;
+  border-bottom: 1px solid var(--border); transition: opacity 0.15s; cursor: default;
+}
+.receipt-row:last-child { border-bottom: none; }
+.receipt-row:hover { opacity: 0.65; }
+.r-date { font-family: var(--mono); font-size: 10px; color: var(--text-light); line-height: 1.6; }
+.r-main { min-width: 0; }
+.r-store { font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-meta { font-size: 11px; color: var(--text-light); margin-top: 2px; display: flex; gap: 8px; align-items: center; }
+.cat-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; vertical-align: middle; margin-right: 3px; position: relative; top: -1px; }
+.r-amount { font-family: var(--mono); font-size: 14px; font-weight: 300; text-align: right; white-space: nowrap; }
+.empty-state { padding: 60px 0; text-align: center; color: var(--text-light); font-size: 12px; line-height: 2.2; letter-spacing: 0.06em; }
+
+/* Modal */
+.overlay {
+  position: fixed; inset: 0; background: rgba(28,26,23,0.45);
+  z-index: 100; display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s; backdrop-filter: blur(2px);
+}
+.overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--surface); width: 100%; max-width: 680px; max-height: 92vh;
+  overflow-y: auto; border-radius: 4px 4px 0 0; border-top: 1px solid var(--border);
+  padding: 28px 24px 40px; transform: translateY(16px); transition: transform 0.22s ease;
+}
+.overlay.open .modal { transform: translateY(0); }
+
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.modal-title { font-family: var(--serif); font-size: 15px; font-weight: 400; letter-spacing: 0.08em; }
+.modal-close { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: var(--r); background: none; cursor: pointer; font-size: 14px; color: var(--text-sub); display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.modal-close:hover { border-color: var(--text); color: var(--text); }
+
+.drop-zone { border: 1.5px dashed var(--border-dark); border-radius: var(--r); padding: 32px 20px; text-align: center; cursor: pointer; transition: all 0.15s; margin-bottom: 20px; background: var(--bg); }
+.drop-zone:hover, .drop-zone.over { border-color: var(--text); background: var(--surface); }
+.drop-zone p { font-size: 12px; color: var(--text-sub); line-height: 1.9; letter-spacing: 0.04em; }
+.drop-icon { font-size: 26px; margin-bottom: 8px; display: block; opacity: 0.4; }
+#fileInput { display: none; }
+
+.img-strip { display: none; width: 100%; max-height: 140px; object-fit: cover; border-radius: var(--r); border: 1px solid var(--border); margin-bottom: 20px; }
+.img-strip.show { display: block; }
+
+.ai-wrap { display: none; padding: 20px 0; }
+.ai-wrap.show { display: block; }
+.ai-spinner { width: 20px; height: 20px; border: 1.5px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 18px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ai-steps { display: flex; flex-direction: column; gap: 8px; max-width: 220px; margin: 0 auto; }
+.ai-step { font-size: 12px; color: var(--text-light); letter-spacing: 0.04em; display: flex; align-items: center; gap: 8px; }
+.ai-step::before { content: '·'; width: 12px; }
+.ai-step.active { color: var(--text); }
+.ai-step.active::before { content: '▸'; }
+.ai-step.done { color: var(--text-sub); }
+.ai-step.done::before { content: '✓'; }
+
+.form-wrap { display: none; }
+.form-wrap.show { display: block; }
+
+.field { margin-bottom: 14px; }
+.field-label { display: block; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-light); margin-bottom: 5px; }
+.field-input { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--r); background: var(--bg); font-family: var(--sans); font-size: 13px; font-weight: 300; color: var(--text); transition: border-color 0.15s; -webkit-appearance: none; }
+.field-input:focus { outline: none; border-color: var(--text); background: var(--surface); }
+select.field-input { cursor: pointer; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.items-wrap { border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 14px; }
+.items-header { padding: 7px 11px; background: var(--bg); font-size: 10px; letter-spacing: 0.1em; color: var(--text-light); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 11px; font-size: 12px; border-bottom: 1px solid var(--border); }
+.item-row:last-child { border-bottom: none; }
+.item-ja { font-size: 10px; color: var(--text-light); margin-top: 1px; }
+.item-price { font-family: var(--mono); font-size: 12px; font-weight: 300; }
+
+.btn-submit { width: 100%; padding: 12px; margin-top: 18px; background: var(--text); color: white; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 13px; font-weight: 400; letter-spacing: 0.1em; cursor: pointer; transition: opacity 0.15s; }
+.btn-submit:hover { opacity: 0.8; }
+.btn-reset { display: block; width: 100%; text-align: center; padding: 9px; border: none; background: none; font-size: 11px; color: var(--text-light); cursor: pointer; letter-spacing: 0.06em; margin-top: 8px; }
+.btn-reset:hover { color: var(--text); }
+
+/* Records */
+.filter-row { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.filter-pill { padding: 5px 13px; border: 1px solid var(--border); border-radius: 20px; font-size: 11px; letter-spacing: 0.05em; cursor: pointer; background: none; color: var(--text-sub); font-family: var(--sans); transition: all 0.15s; }
+.filter-pill:hover { border-color: var(--text); color: var(--text); }
+.filter-pill.active { background: var(--text); border-color: var(--text); color: white; }
+.search-wrap { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); padding: 8px 11px; margin-bottom: 14px; }
+.search-wrap input { border: none; outline: none; background: none; font-family: var(--sans); font-size: 13px; font-weight: 300; color: var(--text); width: 100%; }
+.search-wrap input::placeholder { color: var(--text-light); }
+
+/* Stats */
+.stat-block { margin-bottom: 32px; }
+.donut-row { display: flex; align-items: center; gap: 28px; padding: 16px 0; }
+.donut-svg { width: 96px; height: 96px; flex-shrink: 0; }
+.donut-legend { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.leg-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.leg-dot { width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
+.leg-name { flex: 1; color: var(--text-sub); }
+.leg-pct { font-family: var(--mono); font-size: 10px; color: var(--text-light); }
+.leg-amt { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.hbar-list { display: flex; flex-direction: column; gap: 11px; }
+.hbar-row { display: flex; align-items: center; gap: 12px; }
+.hbar-name { font-size: 12px; color: var(--text-sub); width: 64px; flex-shrink: 0; }
+.hbar-track { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.hbar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+.hbar-val { font-family: var(--mono); font-size: 11px; color: var(--text-light); width: 68px; text-align: right; flex-shrink: 0; }
+.top-list { display: flex; flex-direction: column; }
+.top-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.top-row:last-child { border-bottom: none; }
+.top-rank { font-family: var(--mono); font-size: 11px; color: var(--text-light); width: 16px; flex-shrink: 0; }
+.top-info { flex: 1; min-width: 0; }
+.top-store { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-sub { font-size: 10px; color: var(--text-light); margin-top: 2px; }
+.top-amount { font-family: var(--mono); font-size: 13px; font-weight: 300; flex-shrink: 0; }
+
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--text); color: white; padding: 10px 20px; border-radius: var(--r); font-size: 12px; letter-spacing: 0.06em; opacity: 0; transition: all 0.2s; z-index: 200; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 2px; }
+
+@media (max-width: 480px) {
+  .summary { grid-template-columns: 1fr 1fr; }
+  .summary-cell:nth-child(3) { border-top: 1px solid var(--border); grid-column: span 2; }
+  .field-row { grid-template-columns: 1fr; }
+  header { flex-direction: column; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div>
+      <div class="site-title">旅費記帳</div>
+    </div>
+    <div class="site-date" id="headerDate"></div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="home" onclick="showTab('home',this)">總覽</button>
+    <button class="tab" data-tab="records" onclick="showTab('records',this)">明細</button>
+    <button class="tab" data-tab="stats" onclick="showTab('stats',this)">統計</button>
+  </nav>
+
+  <!-- HOME -->
+  <section class="section active" id="tab-home">
+    <div class="summary">
+      <div class="summary-cell">
+        <div class="s-label">今日</div>
+        <div class="s-value" id="s-today">0<span class="unit">円</span></div>
+        <div class="s-sub" id="s-today-n">0 筆</div>
+      </div>
+      <div class="summary-cell">
+        <div class="s-label">累計</div>
+        <div class="s-value" id="s-total">0<span class="unit">円</span></div>
+        <div class="s-sub" id="s-total-n">共 0 筆</div>
+      </div>
+      <div class="summary-cell">
+        <div class="s-label">預算剩餘</div>
+        <div class="s-value" id="s-remain">—</div>
+        <div class="budget-track"><div class="budget-fill" id="s-bfill" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <button class="upload-btn" onclick="openModal()">＋ 掃描或上傳收據</button>
+
+    <div class="sec-label">最近 7 天</div>
+    <div class="chart-bars" id="trendChart"></div>
+
+    <div class="sec-label">最新記錄</div>
+    <div class="receipt-rows" id="homeList"></div>
+  </section>
+
+  <!-- RECORDS -->
+  <section class="section" id="tab-records">
+    <div class="search-wrap">
+      <span style="color:var(--text-light);font-size:13px;">⌕</span>
+      <input type="text" placeholder="搜尋店名…" id="searchInput" oninput="renderRecords()">
+    </div>
+    <div class="filter-row">
+      <button class="filter-pill active" onclick="setFilter('all',this)">全部</button>
+      <button class="filter-pill" onclick="setFilter('食事',this)">食事</button>
+      <button class="filter-pill" onclick="setFilter('交通',this)">交通</button>
+      <button class="filter-pill" onclick="setFilter('購物',this)">購物</button>
+      <button class="filter-pill" onclick="setFilter('住宿',this)">住宿</button>
+      <button class="filter-pill" onclick="setFilter('娛樂',this)">娛樂</button>
+      <button class="filter-pill" onclick="setFilter('其他',this)">其他</button>
+    </div>
+    <div class="receipt-rows" id="recordsList"></div>
+  </section>
+
+  <!-- STATS -->
+  <section class="section" id="tab-stats">
+    <div class="stat-block">
+      <div class="sec-label">消費類別</div>
+      <div class="donut-row">
+        <svg class="donut-svg" viewBox="0 0 100 100" id="donutSvg">
+          <circle cx="50" cy="50" r="36" fill="none" stroke="var(--border)" stroke-width="12"/>
+        </svg>
+        <div class="donut-legend" id="donutLegend">
+          <div style="font-size:11px;color:var(--text-light)">記帳後顯示</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-block">
+      <div class="sec-label">支付方式</div>
+      <div class="hbar-list" id="payChart"><div style="font-size:11px;color:var(--text-light)">記帳後顯示</div></div>
+    </div>
+    <div class="stat-block">
+      <div class="sec-label">TOP 10 消費</div>
+      <div class="top-list" id="top10"><div style="font-size:11px;color:var(--text-light)">記帳後顯示</div></div>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="overlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">新增收據</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="drop-zone" id="dropZone"
+      onclick="document.getElementById('fileInput').click()"
+      ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+      <span class="drop-icon">🧾</span>
+      <p>點擊上傳收據照片<br><span style="font-size:11px;color:var(--text-light)">AI 自動辨識日文、翻譯、分類</span></p>
+      <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
+    </div>
+
+    <img class="img-strip" id="imgStrip" src="" alt="">
+
+    <div class="ai-wrap" id="aiWrap">
+      <div class="ai-spinner"></div>
+      <div class="ai-steps">
+        <div class="ai-step" id="st1">辨識日文收據</div>
+        <div class="ai-step" id="st2">翻譯成繁體中文</div>
+        <div class="ai-step" id="st3">自動分類記帳</div>
+      </div>
+    </div>
+
+    <div class="form-wrap" id="formWrap">
+      <div class="field">
+        <label class="field-label">店名</label>
+        <input class="field-input" id="f-store" type="text" placeholder="例：松屋牛丼">
+      </div>
+      <div class="field">
+        <label class="field-label">日文原名</label>
+        <input class="field-input" id="f-storeja" type="text" placeholder="例：松屋">
+      </div>
+      <div class="field field-row">
+        <div>
+          <label class="field-label">金額（円）</label>
+          <input class="field-input" id="f-amount" type="number" placeholder="0" min="0">
+        </div>
+        <div>
+          <label class="field-label">日期</label>
+          <input class="field-input" id="f-date" type="date">
+        </div>
+      </div>
+      <div class="field field-row">
+        <div>
+          <label class="field-label">類別</label>
+          <select class="field-input" id="f-cat">
+            <option>食事</option><option>交通</option><option>購物</option>
+            <option>住宿</option><option>娛樂</option><option>其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">支付方式</label>
+          <select class="field-input" id="f-pay">
+            <option>現金</option><option>信用卡</option><option>IC卡</option>
+          </select>
+        </div>
+      </div>
+      <div class="field field-row">
+        <div>
+          <label class="field-label">稅別</label>
+          <select class="field-input" id="f-tax">
+            <option>含稅 10%</option><option>含稅 8%（外帶）</option><option>免稅</option><option>未稅</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">地區</label>
+          <select class="field-input" id="f-region">
+            <option>東京</option><option>大阪</option><option>京都</option><option>奈良</option>
+            <option>神戶</option><option>廣島</option><option>福岡</option><option>北海道</option>
+            <option>沖繩</option><option>其他</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="items-wrap" id="itemsWrap" style="display:none">
+        <div class="items-header">辨識品項</div>
+        <div id="itemsList"></div>
+      </div>
+
+      <button class="btn-submit" onclick="saveReceipt()">儲存</button>
+      <button class="btn-reset" onclick="resetModal()">↩ 重新上傳</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BUDGET = 300000;
+const CAT_COLORS = {'食事':'#b07060','交通':'#6878a0','購物':'#907850','住宿':'#508878','娛樂':'#806898','其他':'#909088'};
+const PAY_COLORS = {'現金':'#907850','信用卡':'#6878a0','IC卡':'#508878'};
+
+let receipts = JSON.parse(localStorage.getItem('ryohi')||'[]');
+let filterCat = 'all';
+let curImg = null;
+
+function init() {
+  const now = new Date();
+  document.getElementById('headerDate').textContent =
+    `${now.getFullYear()} / ${String(now.getMonth()+1).padStart(2,'0')} / ${String(now.getDate()).padStart(2,'0')}`;
+  document.getElementById('f-date').value = now.toISOString().split('T')[0];
+  update();
+}
+
+function update() {
+  updateSummary(); renderTrend(); renderHome(); renderRecords(); renderStats();
+}
+
+function updateSummary() {
+  const today = new Date().toISOString().split('T')[0];
+  const todayR = receipts.filter(r=>r.date===today);
+  const tAmt = todayR.reduce((s,r)=>s+r.amount,0);
+  const totalAmt = receipts.reduce((s,r)=>s+r.amount,0);
+  const remain = Math.max(0, BUDGET-totalAmt);
+  const pct = Math.min(100, Math.round(totalAmt/BUDGET*100));
+  document.getElementById('s-today').innerHTML = `${tAmt.toLocaleString()}<span class="unit">円</span>`;
+  document.getElementById('s-today-n').textContent = `${todayR.length} 筆`;
+  document.getElementById('s-total').innerHTML = `${totalAmt.toLocaleString()}<span class="unit">円</span>`;
+  document.getElementById('s-total-n').textContent = `共 ${receipts.length} 筆`;
+  document.getElementById('s-remain').innerHTML = `${remain.toLocaleString()}<span class="unit" style="font-size:10px">円</span>`;
+  const f = document.getElementById('s-bfill');
+  f.style.width = pct+'%';
+  f.className = 'budget-fill'+(pct>80?' warn':'');
+}
+
+function renderTrend() {
+  const dates = Array.from({length:7},(_,i)=>{
+    const d=new Date(); d.setDate(d.getDate()-(6-i)); return d.toISOString().split('T')[0];
+  });
+  const totals = dates.map(d=>receipts.filter(r=>r.date===d).reduce((s,r)=>s+r.amount,0));
+  const max = Math.max(...totals,1);
+  const today = new Date().toISOString().split('T')[0];
+  const wd = ['日','一','二','三','四','五','六'];
+  document.getElementById('trendChart').innerHTML = dates.map((d,i)=>{
+    const h = Math.max(2, Math.round(totals[i]/max*70));
+    const day = new Date(d+'T12:00:00').getDay();
+    return `<div class="bar-col"><div class="b${d===today?' today':''}" style="height:${h}px" title="¥${totals[i].toLocaleString()}"></div><div class="bar-lbl">${wd[day]}</div></div>`;
+  }).join('');
+}
+
+function rowHTML(r) {
+  const d = r.date.slice(5).replace('-','/');
+  const c = CAT_COLORS[r.category]||CAT_COLORS['其他'];
+  return `<div class="receipt-row">
+    <div class="r-date">${d}<br><span style="font-size:9px">${r.region||''}</span></div>
+    <div class="r-main">
+      <div class="r-store">${r.store}</div>
+      <div class="r-meta"><span><span class="cat-dot" style="background:${c}"></span>${r.category}</span><span>${r.payment}</span></div>
+    </div>
+    <div class="r-amount">¥${r.amount.toLocaleString()}</div>
+  </div>`;
+}
+
+function renderHome() {
+  const list = [...receipts].sort((a,b)=>new Date(b.date)-new Date(a.date)||b.id-a.id).slice(0,8);
+  const el = document.getElementById('homeList');
+  el.innerHTML = list.length ? list.map(rowHTML).join('') :
+    '<div class="empty-state">尚無記錄<br>點擊上方按鈕上傳第一張收據</div>';
+}
+
+function setFilter(cat, btn) {
+  filterCat = cat;
+  document.querySelectorAll('.filter-pill').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRecords();
+}
+
+function renderRecords() {
+  const q = (document.getElementById('searchInput')?.value||'').toLowerCase();
+  const list = receipts.filter(r=>{
+    const catOk = filterCat==='all'||r.category===filterCat;
+    const qOk = !q||r.store.toLowerCase().includes(q)||(r.storeJa||'').includes(q);
+    return catOk&&qOk;
+  }).sort((a,b)=>new Date(b.date)-new Date(a.date)||b.id-a.id);
+  const el = document.getElementById('recordsList');
+  el.innerHTML = list.length ? list.map(rowHTML).join('') :
+    '<div class="empty-state">無符合記錄</div>';
+}
+
+function renderStats() {
+  if (!receipts.length) return;
+  // Donut
+  const cats={};
+  receipts.forEach(r=>{cats[r.category]=(cats[r.category]||0)+r.amount;});
+  const total=Object.values(cats).reduce((s,v)=>s+v,0);
+  if (total) {
+    const entries=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+    const R=36,cx=50,cy=50,circ=2*Math.PI*R;
+    let off=0,paths='';
+    entries.forEach(([cat,val])=>{
+      const pct=val/total,dash=pct*circ,color=CAT_COLORS[cat]||'#909088';
+      paths+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${color}" stroke-width="12" stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${-off*circ}" transform="rotate(-90 ${cx} ${cy})"/>`;
+      off+=pct;
+    });
+    document.getElementById('donutSvg').innerHTML=paths;
+    document.getElementById('donutLegend').innerHTML=entries.map(([cat,val])=>`
+      <div class="leg-item"><div class="leg-dot" style="background:${CAT_COLORS[cat]||'#909088'}"></div>
+      <span class="leg-name">${cat}</span>
+      <span class="leg-pct">${Math.round(val/total*100)}%</span>
+      <span class="leg-amt">¥${val.toLocaleString()}</span></div>`).join('');
+  }
+  // Payment
+  const pays={};
+  receipts.forEach(r=>{pays[r.payment]=(pays[r.payment]||0)+r.amount;});
+  const ptotal=Object.values(pays).reduce((s,v)=>s+v,0);
+  if (ptotal) document.getElementById('payChart').innerHTML=Object.entries(pays).sort((a,b)=>b[1]-a[1]).map(([pay,val])=>`
+    <div class="hbar-row"><div class="hbar-name">${pay}</div>
+    <div class="hbar-track"><div class="hbar-fill" style="width:${Math.round(val/ptotal*100)}%;background:${PAY_COLORS[pay]||'#909088'}"></div></div>
+    <div class="hbar-val">¥${val.toLocaleString()}</div></div>`).join('');
+  // Top 10
+  const sorted=[...receipts].sort((a,b)=>b.amount-a.amount).slice(0,10);
+  document.getElementById('top10').innerHTML=sorted.length?sorted.map((r,i)=>`
+    <div class="top-row"><div class="top-rank">${i+1}</div>
+    <div class="top-info"><div class="top-store">${r.store}</div><div class="top-sub">${r.date} · ${r.category} · ${r.region||''}</div></div>
+    <div class="top-amount">¥${r.amount.toLocaleString()}</div></div>`).join('') :
+    '<div style="font-size:11px;color:var(--text-light)">記帳後顯示</div>';
+}
+
+// Tab
+function showTab(name, btn) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  if (name==='stats') renderStats();
+}
+
+// Modal
+function openModal() { document.getElementById('overlay').classList.add('open'); }
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+function overlayClick(e) { if(e.target===document.getElementById('overlay')) closeModal(); }
+
+function resetModal() {
+  document.getElementById('dropZone').style.display='block';
+  document.getElementById('imgStrip').classList.remove('show');
+  document.getElementById('aiWrap').classList.remove('show');
+  document.getElementById('formWrap').classList.remove('show');
+  document.getElementById('itemsWrap').style.display='none';
+  document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
+  ['st1','st2','st3'].forEach(s=>{document.getElementById(s).className='ai-step';});
+  document.getElementById('fileInput').value='';
+  curImg=null;
+}
+
+function onDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('over'); }
+function onDragLeave() { document.getElementById('dropZone').classList.remove('over'); }
+function onDrop(e) { e.preventDefault(); onDragLeave(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) processFile(f); }
+function handleFile(e) { const f=e.target.files[0]; if(f) processFile(f); }
+
+function processFile(file) {
+  const reader=new FileReader();
+  reader.onload=e=>{
+    curImg=e.target.result;
+    const img=document.getElementById('imgStrip');
+    img.src=curImg; img.classList.add('show');
+    document.getElementById('dropZone').style.display='none';
+    document.getElementById('aiWrap').classList.add('show');
+    runAI(curImg);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runAI(imgDataUrl) {
+  const steps=['st1','st2','st3'];
+  document.getElementById('st1').classList.add('active');
+  const tick=(i,delay)=>setTimeout(()=>{
+    if(i>0){document.getElementById(steps[i-1]).classList.remove('active'); document.getElementById(steps[i-1]).classList.add('done');}
+    if(i<steps.length) document.getElementById(steps[i]).classList.add('active');
+  },delay);
+  tick(1,900); tick(2,1800);
+  try {
+    const base64=imgDataUrl.split(',')[1];
+    const media=imgDataUrl.split(';')[0].split(':')[1]||'image/jpeg';
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:media,data:base64}},
+        {type:'text',text:`分析此日本收據，回傳純JSON（不含markdown或說明）：
+{"store":"店名繁中","storeJa":"日文原名","amount":金額整數,"date":"YYYY-MM-DD","category":"食事|交通|購物|住宿|娛樂|其他","payment":"現金|信用卡|IC卡","tax":"含稅 10%|含稅 8%（外帶）|免稅|未稅","region":"東京|大阪|京都|奈良|神戶|廣島|福岡|北海道|沖繩|其他","items":[{"name":"品項繁中","nameJa":"日文","price":單價}]}
+非收據圖片則回傳{"error":true}。今天${new Date().toISOString().split('T')[0]}`}
+      ]}]})
+    });
+    const data=await res.json();
+    const text=(data.content||[]).map(c=>c.text||'').join('');
+    steps.forEach(s=>{ document.getElementById(s).className='ai-step done'; });
+    await new Promise(r=>setTimeout(r,300));
+    try { const p=JSON.parse(text.replace(/```json|```/g,'').trim()); p.error?showForm({}):showForm(p); }
+    catch { showForm({}); }
+  } catch(err) {
+    console.error(err);
+    steps.forEach(s=>{ document.getElementById(s).className='ai-step done'; });
+    showForm({});
+  }
+}
+
+function showForm(d) {
+  document.getElementById('aiWrap').classList.remove('show');
+  document.getElementById('formWrap').classList.add('show');
+  const set=(id,v)=>{ if(v!==undefined) document.getElementById(id).value=v; };
+  set('f-store',d.store); set('f-storeja',d.storeJa); set('f-amount',d.amount);
+  if(d.date) set('f-date',d.date);
+  const sel=(id,val)=>{ if(!val) return; for(const o of document.getElementById(id).options) if(o.value===val){o.selected=true;break;} };
+  sel('f-cat',d.category); sel('f-pay',d.payment); sel('f-tax',d.tax); sel('f-region',d.region);
+  if(d.items?.length) {
+    document.getElementById('itemsWrap').style.display='block';
+    document.getElementById('itemsList').innerHTML=d.items.map(it=>`
+      <div class="item-row"><div><div>${it.name||''}</div><div class="item-ja">${it.nameJa||''}</div></div>
+      <div class="item-price">¥${(it.price||0).toLocaleString()}</div></div>`).join('');
+  }
+}
+
+function saveReceipt() {
+  const store=document.getElementById('f-store').value.trim();
+  const amount=parseInt(document.getElementById('f-amount').value)||0;
+  if(!store||!amount){alert('請填寫店名與金額');return;}
+  receipts.push({id:Date.now(),store,storeJa:document.getElementById('f-storeja').value.trim(),amount,
+    date:document.getElementById('f-date').value,category:document.getElementById('f-cat').value,
+    payment:document.getElementById('f-pay').value,tax:document.getElementById('f-tax').value,
+    region:document.getElementById('f-region').value});
+  localStorage.setItem('ryohi',JSON.stringify(receipts));
+  closeModal(); resetModal();
+  toast('已記帳 ¥'+amount.toLocaleString());
+  update();
+}
+
+function toast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+// Demo data
+function loadDemo() {
+  if(receipts.length) return;
+  receipts=[
+    {id:1,store:'松屋牛丼',storeJa:'松屋',amount:680,date:'2026-03-01',category:'食事',payment:'現金',tax:'含稅 10%',region:'東京'},
+    {id:2,store:'山手線一日券',storeJa:'山手線一日乗車券',amount:800,date:'2026-03-01',category:'交通',payment:'IC卡',tax:'含稅 10%',region:'東京'},
+    {id:3,store:'唐吉訶德秋葉原',storeJa:'ドン・キホーテ',amount:4200,date:'2026-03-02',category:'購物',payment:'信用卡',tax:'含稅 10%',region:'東京'},
+    {id:4,store:'嵐山茶屋',storeJa:'嵐山竹林茶屋',amount:1200,date:'2026-03-13',category:'食事',payment:'現金',tax:'含稅 8%（外帶）',region:'京都'},
+    {id:5,store:'新幹線東京→京都',storeJa:'東海道新幹線',amount:13870,date:'2026-03-11',category:'交通',payment:'信用卡',tax:'含稅 10%',region:'東京'},
+    {id:6,store:'博多一幸舍',storeJa:'博多一幸舎',amount:890,date:'2026-03-22',category:'食事',payment:'現金',tax:'含稅 10%',region:'福岡'},
+    {id:7,store:'清水坂土產',storeJa:'清水坂おみやげ',amount:2800,date:'2026-03-13',category:'購物',payment:'現金',tax:'含稅 10%',region:'京都'},
+  ];
+  localStorage.setItem('ryohi',JSON.stringify(receipts));
+}
+
+loadDemo();
+init();
+</script>
+</body>
+</html>
